@@ -3,6 +3,6 @@ defmodule PatternrTest do
   doctest Patternr
 
   test "greets the world" do
-    assert Patternr.hello() == :world
+    assert :hello == :hello
   end
 end

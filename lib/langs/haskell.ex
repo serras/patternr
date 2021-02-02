@@ -18,8 +18,8 @@ defmodule Patternr.Haskell.Parser do
     |> label("wildcard")
   end
 
-  def build_var([v]),   do: {v, nil}
-  def build_var([v,e]), do: {v, e}
+  def build_var([v]), do: {v, nil}
+  def build_var([v, e]), do: {v, e}
 
   def variable() do
     generic_name(?a..?z, "variable name")
@@ -29,7 +29,7 @@ defmodule Patternr.Haskell.Parser do
     |> label("variable")
   end
 
-  def separate([cstr|args]), do: {cstr, args}
+  def separate([cstr | args]), do: {cstr, args}
 
   def single_constructor() do
     generic_name(?A..?Z, "constructor name")
@@ -47,25 +47,27 @@ defmodule Patternr.Haskell.Parser do
   end
 
   def parens() do
-    ignore(string("(")  |> optional(whitespace()))
+    ignore(string("(") |> optional(whitespace()))
     |> parsec(:element)
     |> lookahead_not(optional(whitespace()) |> string(","))
     |> ignore(optional(whitespace()) |> string(")"))
   end
 
   def list() do
-    ignore(string("[")  |> optional(whitespace()))
+    ignore(string("[") |> optional(whitespace()))
     |> choice([
-         # empty list
-         ignore(string("]")) |> replace({:list, []}),
-         # at least one element
-         parsec(:element)
-         |> repeat(ignore(optional(whitespace()) |> string(",") |> optional(whitespace()))
-                   |> parsec(:element))
-         |> optional(whitespace())
-         |> ignore(string("]"))
-         |> tag(:list)
-       ])
+      # empty list
+      ignore(string("]")) |> replace({:list, []}),
+      # at least one element
+      parsec(:element)
+      |> repeat(
+        ignore(optional(whitespace()) |> string(",") |> optional(whitespace()))
+        |> parsec(:element)
+      )
+      |> optional(whitespace())
+      |> ignore(string("]"))
+      |> tag(:list)
+    ])
     |> label("list literal")
   end
 
@@ -83,14 +85,14 @@ defmodule Patternr.Haskell.Parser do
   def element_() do
     choice([
       parens(),
-      # tuple(),
+      #  tuple(),
       list(),
       single_constructor(),
       Patternr.Common.string_with_quotes(?") |> unwrap_and_tag(:string),
       Patternr.Common.string_with_quotes(?') |> unwrap_and_tag(:char),
       integer(min: 1) |> unwrap_and_tag(:integer),
       variable(),
-      wildcard(),
+      wildcard()
     ])
   end
 
@@ -113,96 +115,114 @@ defmodule Patternr.Haskell do
   import NimbleParsec
   import Patternr.Haskell.Parser
 
-  @type element :: {:wildcard, String.t}
-                 | {:variable, {String.t, element | nil}}
-                 | {:constructor, {String.t, list(element)}}
-                 | {:tuple, list(element)}
-                 | {:list, list(element)}
-                 | {:cons, {element, element}}
-                 | {:record, {String.t, list(field), boolean}}
-                 | {:string, String.t}
-                 | {:char, String.t}
-                 | {:integer, integer}
-  @type field   :: {String.t, element}
+  @type element ::
+          {:wildcard, String.t()}
+          | {:variable, {String.t(), element | nil}}
+          | {:constructor, {String.t(), list(element)}}
+          | {:tuple, list(element)}
+          | {:list, list(element)}
+          | {:cons, {element, element}}
+          | {:record, {String.t(), list(field), boolean}}
+          | {:string, String.t()}
+          | {:char, String.t()}
+          | {:integer, integer}
+  @type field :: {String.t(), element}
 
-  @spec vars(element) :: list(String.t)
+  @spec vars(element) :: list(String.t())
   def vars({:wildcard, _}), do: []
   def vars({:variable, {v, nil}}), do: [v]
-  def vars({:variable, {v, t}}), do: [v|vars(t)]
+  def vars({:variable, {v, t}}), do: [v | vars(t)]
   def vars({:cons, {x, xs}}), do: vars(x) <> vars(xs)
+
   def vars({:constructor, {_c, elts}}) do
     elts |> Enum.flat_map(&vars/1)
   end
+
   def vars({:tuple, elts}) do
     elts |> Enum.flat_map(&vars/1)
   end
+
   def vars({:list, elts}) do
     elts |> Enum.flat_map(&vars/1)
   end
+
   def vars(_), do: []
 
-  ## MATCHER
-  ## =======
+  ##  MATCHER
+  ##  =======
 
-
-
-  ## PARSER
-  ## ======
-  defparsec :element_, element_()
-  defparsec :element, element()
+  ##  PARSER
+  ##  ======
+  defparsec(:element_, element_())
+  defparsec(:element, element())
 
   @type pattern :: element
-  @type value   :: element
+  @type value :: element
 
   @impl Patternr
-  @spec pattern(String.t) :: {:ok, pattern} | {:error, String.t}
+  @spec pattern(String.t()) :: {:ok, pattern} | {:error, String.t()}
   def pattern(str) do
     case Patternr.Haskell.element(str) do
       {:ok, [p], "", _, _, _} ->
         vars = vars(p)
         uniques = Enum.uniq(vars)
+
         if length(vars) == length(uniques) do
           {:ok, p}
         else
           {:error, "duplicate variables"}
         end
-      {:ok, _,    _, _, _, _} -> {:error, "unfinished string"}
-      {:error, e, _, _, _, _} -> {:error, e}
+
+      {:ok, _, _, _, _, _} ->
+        {:error, "unfinished string"}
+
+      {:error, e, _, _, _, _} ->
+        {:error, e}
     end
   end
 
   @impl Patternr
-  @spec value(String.t) :: {:ok, value} | {:error, String.t}
+  @spec value(String.t()) :: {:ok, value} | {:error, String.t()}
   def value(str) do
     case Patternr.Haskell.element(str) do
       {:ok, [p], "", _, _, _} ->
         vars = vars(p)
+
         if Enum.empty?(vars(p)) do
           {:ok, p}
         else
           {:error, "found variables: #{Enum.join(vars, ", ")}"}
         end
-      {:ok, _,    _, _, _, _} -> {:error, "unfinished string"}
-      {:error, e, _, _, _, _} -> {:error, e}
+
+      {:ok, _, _, _, _, _} ->
+        {:error, "unfinished string"}
+
+      {:error, e, _, _, _, _} ->
+        {:error, e}
     end
   end
 
   @impl Patternr
-  @spec match(value, pattern)
-    :: {:match, Patternr.assignment} | {:non_match, list({value, pattern})}
-  def match(x, x), do: {:match, %{}}  # yay! in one go!
+  @spec match(value, pattern) ::
+          {:match, Patternr.assignment()} | {:non_match, list({value, pattern})}
+  # yay! in one go!
+  def match(x, x), do: {:match, %{}}
   def match(v, {:variable, {x, nil}}), do: {:match, %{x => v}}
+
   def match(v, {:variable, {x, inner}}) do
     join_match({:match, %{x => v}}, match(v, inner))
   end
+
   def match({:constructor, {c, vargs}}, {:constructor, {c, pargs}})
-    when length(vargs) == length(pargs) do
+      when length(vargs) == length(pargs) do
     match_many(vargs, pargs)
   end
+
   def match({:tuple, velts}, {:tuple, pelts})
-    when length(velts) == length(pelts) do
+      when length(velts) == length(pelts) do
     match_many(velts, pelts)
   end
+
   # list, cons, string, oh my!
   def match(v, p), do: {:non_match, [{v, p}]}
 
@@ -219,10 +239,11 @@ defmodule Patternr.Haskell do
   def join_match({:match, x}, {:match, y}) do
     {:match, Map.merge(x, y)}
   end
+
   def join_match({:match, _}, {:non_match, y}), do: {:non_match, y}
   def join_match({:non_match, x}, {:match, _}), do: {:non_match, x}
+
   def join_match({:non_match, x}, {:non_match, y}) do
     {:non_match, x <> y}
   end
-
 end
