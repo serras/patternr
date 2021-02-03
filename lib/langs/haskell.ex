@@ -1,4 +1,10 @@
 defmodule Patternr.Haskell.Parser do
+  @moduledoc """
+  Parser for Haskell patterns and values.
+  The actual parser is defined in the
+  module `Patternr.Haskell`.
+  """
+
   import NimbleParsec
 
   def whitespace(combinator \\ empty()) do
@@ -135,15 +141,15 @@ defmodule Patternr.Haskell do
   def vars({:cons, {x, xs}}), do: vars(x) <> vars(xs)
 
   def vars({:constructor, {_c, elts}}) do
-    elts |> Enum.flat_map(&vars/1)
+    Enum.flat_map(elts, &vars/1)
   end
 
   def vars({:tuple, elts}) do
-    elts |> Enum.flat_map(&vars/1)
+    Enum.flat_map(elts, &vars/1)
   end
 
   def vars({:list, elts}) do
-    elts |> Enum.flat_map(&vars/1)
+    Enum.flat_map(elts, &vars/1)
   end
 
   def vars(_), do: []

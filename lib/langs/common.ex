@@ -1,4 +1,9 @@
 defmodule Patternr.Common do
+  @moduledoc """
+  Common utilities for several matchers,
+  like pieces for parsers.
+  """
+
   import NimbleParsec
 
   # copied from the docs
