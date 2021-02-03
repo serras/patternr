@@ -36,7 +36,9 @@
       #
       # Load and configure plugins here:
       #
-      plugins: [],
+      plugins: [
+        {CredoContrib, []}
+      ],
       #
       # If you create your own checks, you must specify the source files for
       # them here, so they can be loaded by Credo before running the analysis.
@@ -74,6 +76,9 @@
         {Credo.Check.Consistency.SpaceAroundOperators, []},
         {Credo.Check.Consistency.SpaceInParentheses, []},
         {Credo.Check.Consistency.TabsOrSpaces, []},
+
+        # Plug-ins
+        {CredoContrib.Check.SingleFunctionPipe, false},
 
         #
         ## Design Checks

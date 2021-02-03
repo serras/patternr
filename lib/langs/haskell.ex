@@ -139,19 +139,9 @@ defmodule Patternr.Haskell do
   def vars({:variable, {v, nil}}), do: [v]
   def vars({:variable, {v, t}}), do: [v | vars(t)]
   def vars({:cons, {x, xs}}), do: vars(x) <> vars(xs)
-
-  def vars({:constructor, {_c, elts}}) do
-    Enum.flat_map(elts, &vars/1)
-  end
-
-  def vars({:tuple, elts}) do
-    Enum.flat_map(elts, &vars/1)
-  end
-
-  def vars({:list, elts}) do
-    Enum.flat_map(elts, &vars/1)
-  end
-
+  def vars({:constructor, {_c, elts}}), do: Enum.flat_map(elts, &vars/1)
+  def vars({:tuple, elts}), do: Enum.flat_map(elts, &vars/1)
+  def vars({:list, elts}), do: Enum.flat_map(elts, &vars/1)
   def vars(_), do: []
 
   ##  MATCHER
@@ -215,19 +205,16 @@ defmodule Patternr.Haskell do
   def match(x, x), do: {:match, %{}}
   def match(v, {:variable, {x, nil}}), do: {:match, %{x => v}}
 
-  def match(v, {:variable, {x, inner}}) do
-    join_match({:match, %{x => v}}, match(v, inner))
-  end
+  def match(v, {:variable, {x, inner}}),
+    do: join_match({:match, %{x => v}}, match(v, inner))
 
   def match({:constructor, {c, vargs}}, {:constructor, {c, pargs}})
-      when length(vargs) == length(pargs) do
-    match_many(vargs, pargs)
-  end
+      when length(vargs) == length(pargs),
+      do: match_many(vargs, pargs)
 
   def match({:tuple, velts}, {:tuple, pelts})
-      when length(velts) == length(pelts) do
-    match_many(velts, pelts)
-  end
+      when length(velts) == length(pelts),
+      do: match_many(velts, pelts)
 
   # list, cons, string, oh my!
   def match(v, p), do: {:non_match, [{v, p}]}
@@ -242,14 +229,8 @@ defmodule Patternr.Haskell do
     Enum.reduce(matches, {:match, %{}}, &join_match/2)
   end
 
-  def join_match({:match, x}, {:match, y}) do
-    {:match, Map.merge(x, y)}
-  end
-
+  def join_match({:match, x}, {:match, y}), do: {:match, Map.merge(x, y)}
   def join_match({:match, _}, {:non_match, y}), do: {:non_match, y}
   def join_match({:non_match, x}, {:match, _}), do: {:non_match, x}
-
-  def join_match({:non_match, x}, {:non_match, y}) do
-    {:non_match, x <> y}
-  end
+  def join_match({:non_match, x}, {:non_match, y}), do: {:non_match, x <> y}
 end

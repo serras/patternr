@@ -25,6 +25,7 @@ defmodule Patternr.MixProject do
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:credo_contrib, "~> 0.2.0", only: [:dev, :test], runtime: false},
       {:nimble_parsec, "~> 1.1"}
     ]
   end
