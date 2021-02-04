@@ -195,6 +195,34 @@ defmodule Patternr.Haskell do
     end
   end
 
+  ##  PRINTER
+  ## =======
+  @impl Patternr
+  @spec show(value) :: String.t()
+  def show({:wildcard, v}), do: v
+  def show({:variable, {v, nil}}), do: v
+  def show({:variable, {v, p}}), do: v <> "@" <> show_parens(p)
+  def show({:tuple, lst}), do: show_several("(", ")", lst)
+  def show({:list, lst}), do: show_several("[", "]", lst)
+  def show({:char, c}), do: "'#{c}'"
+  def show({:integer, c}), do: "#{c}"
+  def show({:string, s}), do: "\"#{String.replace(s, "\"", "\\\"")}\""
+  def show({:cons, {x, xs}}), do: "#{show_parens(x)} : #{show(xs)}"
+
+  defp show_parens(p) do
+    r = show(p)
+
+    if String.contains?(r, " ") do
+      "(" <> r <> ")"
+    else
+      r
+    end
+  end
+
+  defp show_several(startc, endc, ps) do
+    startc <> Enum.map_join(ps, ", ", &show/1) <> endc
+  end
+
   ##  MATCHER
   ##  =======
   @impl Patternr
@@ -223,10 +251,10 @@ defmodule Patternr.Haskell do
     do: join_match(match(v, p), match(vs, ps))
 
   def match({:list, [v | vs]}, {:cons, {p, ps}}),
-    do: join_match(match(v, p), match(vs, ps))
+    do: join_match(match(v, p), match({:list, vs}, ps))
 
   def match({:cons, {v, vs}}, {:list, [p | ps]}),
-    do: join_match(match(v, p), match(vs, ps))
+    do: join_match(match(v, p), match(vs, {:list, ps}))
 
   def match(v = {:string, str}, p = {:list, [px | pxs]}) do
     if String.length(str) > 0 do

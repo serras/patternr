@@ -15,4 +15,13 @@ defmodule Patternr do
 
   @callback match(value, pattern) ::
               {:match, assignment} | {:non_match, list({value, pattern})}
+
+  @spec parse_match(atom, String.t(), String.t()) :: any
+  def parse_match(module, val, pat) do
+    with {:ok, v} <- module.value(val),
+         {:ok, p} <- module.pattern(pat),
+         {:match, m} <- module.match(v, p) do
+      {:ok, Enum.map(m, fn {var, info} -> {var, module.show(info)} end)}
+    end
+  end
 end
