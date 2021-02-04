@@ -20,8 +20,18 @@ defmodule Patternr do
   def parse_match(module, val, pat) do
     with {:ok, v} <- module.value(val),
          {:ok, p} <- module.pattern(pat),
-         {:match, m} <- module.match(v, p) do
-      {:ok, Enum.map(m, fn {var, info} -> {var, module.show(info)} end)}
+         m <- module.match(v, p) do
+      case m do
+        {:match, subst} ->
+          showable_subst = Enum.map(subst, fn {var, info} -> {var, module.show(info)} end)
+          {:match, showable_subst}
+
+        {:non_match, problems} ->
+          showable_problems =
+            Enum.map(problems, fn {one, other} -> {module.show(one), module.show(other)} end)
+
+          {:non_match, showable_problems}
+      end
     end
   end
 end
