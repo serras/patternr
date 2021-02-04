@@ -138,14 +138,11 @@ defmodule Patternr.Haskell do
   def vars({:wildcard, _}), do: []
   def vars({:variable, {v, nil}}), do: [v]
   def vars({:variable, {v, t}}), do: [v | vars(t)]
-  def vars({:cons, {x, xs}}), do: vars(x) <> vars(xs)
+  def vars({:cons, {x, xs}}), do: vars(x) ++ vars(xs)
   def vars({:constructor, {_c, elts}}), do: Enum.flat_map(elts, &vars/1)
   def vars({:tuple, elts}), do: Enum.flat_map(elts, &vars/1)
   def vars({:list, elts}), do: Enum.flat_map(elts, &vars/1)
   def vars(_), do: []
-
-  ##  MATCHER
-  ##  =======
 
   ##  PARSER
   ##  ======
@@ -198,6 +195,8 @@ defmodule Patternr.Haskell do
     end
   end
 
+  ##  MATCHER
+  ##  =======
   @impl Patternr
   @spec match(value, pattern) ::
           {:match, Patternr.assignment()} | {:non_match, list({value, pattern})}
@@ -217,6 +216,54 @@ defmodule Patternr.Haskell do
       do: match_many(velts, pelts)
 
   # list, cons, string, oh my!
+  def match({:list, velts}, {:list, pelts}),
+    do: match_many(velts, pelts)
+
+  def match({:cons, {v, vs}}, {:cons, {p, ps}}),
+    do: join_match(match(v, p), match(vs, ps))
+
+  def match({:list, [v | vs]}, {:cons, {p, ps}}),
+    do: join_match(match(v, p), match(vs, ps))
+
+  def match({:cons, {v, vs}}, {:list, [p | ps]}),
+    do: join_match(match(v, p), match(vs, ps))
+
+  def match(v = {:string, str}, p = {:list, [px | pxs]}) do
+    if String.length(str) > 0 do
+      {s, ss} = String.split_at(str, 1)
+      join_match(match({:char, s}, px), match({:string, ss}, {:list, pxs}))
+    else
+      {:non_match, [{v, p}]}
+    end
+  end
+
+  def match(v = {:string, str}, p = {:cons, {px, pxs}}) do
+    if String.length(str) > 0 do
+      {s, ss} = String.split_at(str, 1)
+      join_match(match({:char, s}, px), match({:string, ss}, pxs))
+    else
+      {:non_match, [{v, p}]}
+    end
+  end
+
+  def match(v = {:list, [vx | vxs]}, p = {:string, str}) do
+    if String.length(str) > 0 do
+      {s, ss} = String.split_at(str, 1)
+      join_match(match(vx, {:char, s}), match({:list, vxs}, {:string, ss}))
+    else
+      {:non_match, [{v, p}]}
+    end
+  end
+
+  def match(v = {:cons, {vx, vxs}}, p = {:string, str}) do
+    if String.length(str) > 0 do
+      {s, ss} = String.split_at(str, 1)
+      join_match(match(vx, {:char, s}), match(vxs, {:string, ss}))
+    else
+      {:non_match, [{v, p}]}
+    end
+  end
+
   def match(v, p), do: {:non_match, [{v, p}]}
 
   def match_many(vs, ps) when length(vs) == length(ps) do
@@ -232,5 +279,5 @@ defmodule Patternr.Haskell do
   def join_match({:match, x}, {:match, y}), do: {:match, Map.merge(x, y)}
   def join_match({:match, _}, {:non_match, y}), do: {:non_match, y}
   def join_match({:non_match, x}, {:match, _}), do: {:non_match, x}
-  def join_match({:non_match, x}, {:non_match, y}), do: {:non_match, x <> y}
+  def join_match({:non_match, x}, {:non_match, y}), do: {:non_match, x ++ y}
 end

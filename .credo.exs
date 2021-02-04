@@ -79,6 +79,7 @@
 
         # Plug-ins
         {CredoContrib.Check.SingleFunctionPipe, false},
+        {CredoContrib.Check.FunctionBlockSyntax, false},
 
         #
         ## Design Checks
