@@ -198,6 +198,10 @@ defmodule Patternr.Haskell do
   ##  PRINTER
   ## =======
   @impl Patternr
+  @spec intro_text() :: {String.t(), String.t()}
+  def intro_text(), do: {"case", "of"}
+
+  @impl Patternr
   @spec show(value) :: String.t()
   def show({:wildcard, v}), do: v
   def show({:variable, {v, nil}}), do: v

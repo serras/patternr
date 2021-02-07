@@ -12,6 +12,7 @@ defmodule Patternr do
   @callback value(String.t()) :: {:ok, value} | {:error, String.t()}
 
   @callback show(value) :: String.t()
+  @callback intro_text() :: {String.t(), String.t()}
 
   @callback match(value, pattern) ::
               {:match, assignment} | {:non_match, list({value, pattern})}
