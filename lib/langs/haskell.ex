@@ -206,6 +206,7 @@ defmodule Patternr.Haskell do
   def show({:wildcard, v}), do: v
   def show({:variable, {v, nil}}), do: v
   def show({:variable, {v, p}}), do: v <> "@" <> show_parens(p)
+  def show({:constructor, {c, args}}), do: show_several_spaces(c <> "", "", args)
   def show({:tuple, lst}), do: show_several("(", ")", lst)
   def show({:list, lst}), do: show_several("[", "]", lst)
   def show({:char, c}), do: "'#{c}'"
@@ -225,6 +226,10 @@ defmodule Patternr.Haskell do
 
   defp show_several(startc, endc, ps) do
     startc <> Enum.map_join(ps, ", ", &show/1) <> endc
+  end
+
+  defp show_several_spaces(startc, endc, ps) do
+    startc <> Enum.map_join(ps, " ", &show_parens/1) <> endc
   end
 
   ##  MATCHER
