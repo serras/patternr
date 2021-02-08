@@ -253,8 +253,9 @@ defmodule Patternr.Haskell do
       do: match_many(velts, pelts)
 
   # list, cons, string, oh my!
-  def match({:list, velts}, {:list, pelts}),
-    do: match_many(velts, pelts)
+  def match({:list, velts}, {:list, pelts})
+      when length(velts) == length(pelts),
+      do: match_many(velts, pelts)
 
   def match({:cons, {v, vs}}, {:cons, {p, ps}}),
     do: join_match(match(v, p), match(vs, ps))
