@@ -46,7 +46,7 @@ defmodule Patternr.Haskell.Parser do
 
   def constructor() do
     generic_name(?A..?Z, "constructor name")
-    |> repeat(whitespace() |> parsec(:element))
+    |> repeat(whitespace() |> parsec(:element_))
     |> reduce(:separate)
     |> unwrap_and_tag(:constructor)
     |> label("constructor")
@@ -206,6 +206,7 @@ defmodule Patternr.Haskell do
   def show({:wildcard, v}), do: v
   def show({:variable, {v, nil}}), do: v
   def show({:variable, {v, p}}), do: v <> "@" <> show_parens(p)
+  def show({:constructor, {c, []}}), do: c
   def show({:constructor, {c, args}}), do: show_several_spaces(c <> " ", "", args)
   def show({:tuple, lst}), do: show_several("(", ")", lst)
   def show({:list, lst}), do: show_several("[", "]", lst)
