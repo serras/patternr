@@ -267,6 +267,9 @@ defmodule Patternr.Haskell do
   def match({:cons, {v, vs}}, {:list, [p | ps]}),
     do: join_match(match(v, p), match(vs, {:list, ps}))
 
+  def match({:string, ""}, {:list, []}), do: {:match, %{}}
+  def match({:list, []}, {:string, ""}), do: {:match, %{}}
+
   def match(v = {:string, str}, p = {:list, [px | pxs]}) do
     if String.length(str) > 0 do
       {s, ss} = String.split_at(str, 1)
