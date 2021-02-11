@@ -6,13 +6,11 @@ defmodule Patternr.Haskell.Parser do
   """
 
   import NimbleParsec
+  import Patternr.Common
 
-  def whitespace(combinator \\ empty()) do
-    ignore(combinator, utf8_string([?\s], min: 1))
-  end
-
-  def generic_name(initial_range, name) do
-    utf8_string([initial_range], 1)
+  def generic_name(combinator \\ empty(), initial_range, name) do
+    combinator
+    |> utf8_string([initial_range], 1)
     |> utf8_string([?A..?Z, ?a..?z, ?0..?9, ?_..?_], min: 0)
     |> reduce({Enum, :join, []})
     |> label(name)
@@ -27,50 +25,85 @@ defmodule Patternr.Haskell.Parser do
   def build_var([v]), do: {v, nil}
   def build_var([v, e]), do: {v, e}
 
-  def variable() do
-    generic_name(?a..?z, "variable name")
+  def variable(combinator \\ empty()) do
+    combinator
+    |> generic_name(?a..?z, "variable name")
     |> optional(ignore(string("@")) |> parsec(:element_))
     |> reduce(:build_var)
     |> unwrap_and_tag(:variable)
     |> label("variable")
   end
 
+  def field(combinator \\ empty()) do
+    combinator
+    |> generic_name(?a..?z, "field name")
+    |> ignore(owhitespace() |> string("=") |> owhitespace())
+    |> parsec(:element)
+    |> reduce(:build_var)
+  end
+
+  def fields(combinator \\ empty()) do
+    choice(combinator, [
+      field()
+      |> repeat(
+        ignore(owhitespace() |> string(",") |> owhitespace())
+        |> field()
+      ),
+      owhitespace() |> replace([])
+    ])
+  end
+
+  def record(combinator \\ empty()) do
+    combinator
+    |> generic_name(?A..?Z, "constructor name")
+    |> ignore(owhitespace() |> string("{") |> owhitespace())
+    |> fields()
+    |> ignore(owhitespace() |> string("}"))
+    |> reduce(:separate)
+    |> unwrap_and_tag(:record)
+    |> label("constructor")
+  end
+
   def separate([cstr | args]), do: {cstr, args}
 
-  def single_constructor() do
-    generic_name(?A..?Z, "constructor name")
+  def single_constructor(combinator \\ empty()) do
+    combinator
+    |> generic_name(?A..?Z, "constructor name")
     |> reduce(:separate)
     |> unwrap_and_tag(:constructor)
     |> label("constructor without arguments")
   end
 
-  def constructor() do
-    generic_name(?A..?Z, "constructor name")
+  def constructor(combinator \\ empty()) do
+    combinator
+    |> generic_name(?A..?Z, "constructor name")
     |> repeat(whitespace() |> parsec(:element_))
     |> reduce(:separate)
     |> unwrap_and_tag(:constructor)
     |> label("constructor")
   end
 
-  def parens() do
-    ignore(string("(") |> optional(whitespace()))
+  def parens(combinator \\ empty()) do
+    combinator
+    |> ignore(string("(") |> owhitespace())
     |> parsec(:element)
-    |> lookahead_not(optional(whitespace()) |> string(","))
-    |> ignore(optional(whitespace()) |> string(")"))
+    |> lookahead_not(owhitespace() |> string(","))
+    |> ignore(owhitespace() |> string(")"))
   end
 
-  def list() do
-    ignore(string("[") |> optional(whitespace()))
+  def list(combinator \\ empty()) do
+    combinator
+    |> ignore(string("[") |> owhitespace())
     |> choice([
       # empty list
       ignore(string("]")) |> replace({:list, []}),
       # at least one element
       parsec(:element)
       |> repeat(
-        ignore(optional(whitespace()) |> string(",") |> optional(whitespace()))
+        ignore(owhitespace() |> string(",") |> owhitespace())
         |> parsec(:element)
       )
-      |> optional(whitespace())
+      |> owhitespace()
       |> ignore(string("]"))
       |> tag(:list)
     ])
@@ -79,9 +112,10 @@ defmodule Patternr.Haskell.Parser do
 
   def two_to_tuple([a, b]), do: {a, b}
 
-  def cons() do
-    parsec(:element_)
-    |> ignore(optional(whitespace()) |> string(":") |> optional(whitespace()))
+  def cons(combinator \\ empty()) do
+    combinator
+    |> parsec(:element_)
+    |> ignore(owhitespace() |> string(":") |> owhitespace())
     |> parsec(:element)
     |> reduce(:two_to_tuple)
     |> unwrap_and_tag(:cons)
@@ -94,8 +128,8 @@ defmodule Patternr.Haskell.Parser do
       #  tuple(),
       list(),
       single_constructor(),
-      Patternr.Common.string_with_quotes(?") |> unwrap_and_tag(:string),
-      Patternr.Common.string_with_quotes(?') |> unwrap_and_tag(:char),
+      string_with_quotes(?") |> unwrap_and_tag(:string),
+      string_with_quotes(?') |> unwrap_and_tag(:char),
       integer(min: 1) |> unwrap_and_tag(:integer),
       variable(),
       wildcard()
@@ -105,6 +139,7 @@ defmodule Patternr.Haskell.Parser do
   def element() do
     choice([
       cons(),
+      record(),
       constructor(),
       element_()
     ])
@@ -128,7 +163,7 @@ defmodule Patternr.Haskell do
           | {:tuple, list(element)}
           | {:list, list(element)}
           | {:cons, {element, element}}
-          | {:record, {String.t(), list(field), boolean}}
+          | {:record, {String.t(), list(field)}}
           | {:string, String.t()}
           | {:char, String.t()}
           | {:integer, integer}
@@ -142,6 +177,7 @@ defmodule Patternr.Haskell do
   def vars({:constructor, {_c, elts}}), do: Enum.flat_map(elts, &vars/1)
   def vars({:tuple, elts}), do: Enum.flat_map(elts, &vars/1)
   def vars({:list, elts}), do: Enum.flat_map(elts, &vars/1)
+  def vars({:record, {_, elts}}), do: Enum.flat_map(elts, fn {_, v} -> vars(v) end)
   def vars(_), do: []
 
   ##  PARSER
@@ -214,11 +250,17 @@ defmodule Patternr.Haskell do
   def show({:integer, c}), do: "#{c}"
   def show({:string, s}), do: "\"#{String.replace(s, "\"", "\\\"")}\""
   def show({:cons, {x, xs}}), do: "#{show_parens(x)} : #{show(xs)}"
+  def show({:record, {c, elts}}), do: "#{c} #{show_several("{ ", " }", elts)}"
+  # for record fields
+  def show({k, v}), do: "#{k} = #{show(v)}"
 
   defp show_parens(p) do
     r = show(p)
 
-    if String.contains?(r, " ") do
+    has_spaces = String.contains?(r, " ")
+    starts_with_bracket = String.starts_with?(r, ["[", "(", "\"", "'"])
+
+    if has_spaces and not starts_with_bracket do
       "(" <> r <> ")"
     else
       r
@@ -248,6 +290,29 @@ defmodule Patternr.Haskell do
   def match({:constructor, {c, vargs}}, {:constructor, {c, pargs}})
       when length(vargs) == length(pargs),
       do: match_many(vargs, pargs)
+
+  # Special case: Foo {} matches constructor Foo with any args
+  def match({:constructor, {c, _}}, {:record, {c, []}}), do: {:match, %{}}
+
+  def match(vrec = {:record, {c, vargs}}, prec = {:record, {c, pargs}}) do
+    result =
+      for {key, pat} <- pargs, reduce: {:match, %{}} do
+        nil ->
+          nil
+
+        acc ->
+          case Enum.find(vargs, fn {k, _} -> k == key end) do
+            nil ->
+              nil
+
+            {_, val} ->
+              this_match = match(val, pat)
+              join_match(acc, this_match)
+          end
+      end
+
+    if result == nil, do: {:non_match, [{vrec, prec}]}, else: result
+  end
 
   def match({:tuple, velts}, {:tuple, pelts})
       when length(velts) == length(pelts),
