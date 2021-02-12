@@ -27,7 +27,7 @@ defmodule Patternr.Elixir.Parser do
 
   def variable(combinator \\ empty()) do
     combinator
-    |> generic_name([?A..?Z, ?a..?z], "variable name")
+    |> generic_name([?a..?z], "variable name")
     |> optional(ignore(owhitespace() |> string("=") |> owhitespace()) |> parsec(:element))
     |> reduce(:build_var)
     |> unwrap_and_tag(:variable)
@@ -90,11 +90,51 @@ defmodule Patternr.Elixir.Parser do
     |> label("list")
   end
 
+  def field(combinator \\ empty()) do
+    combinator
+    |> generic_name([?a..?z], "field name")
+    |> ignore(owhitespace() |> string(":") |> owhitespace())
+    |> parsec(:element)
+    |> reduce(:build_var)
+  end
+
+  def fields(combinator \\ empty()) do
+    choice(combinator, [
+      field()
+      |> repeat(
+        ignore(owhitespace() |> string(",") |> owhitespace())
+        |> field()
+      ),
+      owhitespace() |> replace([])
+    ])
+  end
+
+  def separate([cstr, []]), do: {cstr, []}
+  def separate([cstr | args]), do: {cstr, args}
+
+  def map(combinator \\ empty()) do
+    combinator
+    |> ignore(string("%"))
+    |> choice([
+      generic_name([?A..?Z], "struct name")
+      |> ignore(string("{")),
+      ignore(string("{"))
+      |> replace(nil)
+    ])
+    |> ignore(owhitespace())
+    |> fields()
+    |> ignore(owhitespace() |> string("}"))
+    |> reduce(:separate)
+    |> unwrap_and_tag(:map)
+    |> label("map")
+  end
+
   def element() do
     choice([
       parens(),
       tuple(),
       list(),
+      map(),
       string_with_quotes(?") |> unwrap_and_tag(:string),
       string_with_quotes(?') |> unwrap_and_tag(:charlist),
       integer(min: 1) |> unwrap_and_tag(:integer),
@@ -122,6 +162,7 @@ defmodule Patternr.Elixir do
           | {:charlist, String.t()}
           | {:integer, integer}
           | {:list, {list(element), element | nil}}
+          | {:map, {String.t() | nil, list(field)}}
   @type field :: {String.t(), element}
 
   @spec vars(element) :: list(String.t())

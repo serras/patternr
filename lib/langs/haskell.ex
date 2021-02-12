@@ -53,6 +53,9 @@ defmodule Patternr.Haskell.Parser do
     ])
   end
 
+  def separate([cstr, []]), do: {cstr, []}
+  def separate([cstr | args]), do: {cstr, args}
+
   def record(combinator \\ empty()) do
     combinator
     |> generic_name(?A..?Z, "constructor name")
@@ -63,8 +66,6 @@ defmodule Patternr.Haskell.Parser do
     |> unwrap_and_tag(:record)
     |> label("constructor")
   end
-
-  def separate([cstr | args]), do: {cstr, args}
 
   def single_constructor(combinator \\ empty()) do
     combinator
