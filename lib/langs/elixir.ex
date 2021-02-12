@@ -54,18 +54,47 @@ defmodule Patternr.Elixir.Parser do
         ignore(owhitespace() |> string(",") |> owhitespace())
         |> parsec(:element)
       )
-      |> owhitespace()
-      |> ignore(string("}"))
+      |> ignore(owhitespace() |> string("}"))
       |> tag(:tuple)
     ])
     |> label("tuple")
+  end
+
+  def split_last(lst) do
+    {all_but_last, [last]} = Enum.split(lst, -1)
+    {all_but_last, last}
+  end
+
+  def list(combinator \\ empty()) do
+    combinator
+    |> ignore(string("[") |> owhitespace())
+    |> choice([
+      # empty list
+      ignore(string("]")) |> replace({:list, {[], nil}}),
+      # at least one element
+      parsec(:element)
+      |> repeat(
+        ignore(owhitespace() |> string(",") |> owhitespace())
+        |> parsec(:element)
+      )
+      |> choice([
+        ignore(owhitespace() |> string("]"))
+        |> replace(nil),
+        ignore(owhitespace() |> string("|") |> owhitespace())
+        |> parsec(:element)
+        |> ignore(owhitespace() |> string("]"))
+      ])
+      |> reduce(:split_last)
+      |> unwrap_and_tag(:list)
+    ])
+    |> label("list")
   end
 
   def element() do
     choice([
       parens(),
       tuple(),
-      # list(),
+      list(),
       string_with_quotes(?") |> unwrap_and_tag(:string),
       string_with_quotes(?') |> unwrap_and_tag(:charlist),
       integer(min: 1) |> unwrap_and_tag(:integer),
@@ -92,6 +121,7 @@ defmodule Patternr.Elixir do
           | {:string, String.t()}
           | {:charlist, String.t()}
           | {:integer, integer}
+          | {:list, {list(element), element | nil}}
   @type field :: {String.t(), element}
 
   @spec vars(element) :: list(String.t())
@@ -99,6 +129,8 @@ defmodule Patternr.Elixir do
   def vars({:variable, {v, nil}}), do: [v]
   def vars({:variable, {v, t}}), do: [v | vars(t)]
   def vars({:tuple, elts}), do: Enum.flat_map(elts, &vars/1)
+  def vars({:list, {elts, nil}}), do: Enum.flat_map(elts, &vars/1)
+  def vars({:list, {elts, xs}}), do: Enum.flat_map(elts, &vars/1) ++ vars(xs)
   def vars(_), do: []
 
   ##  PARSER
@@ -156,6 +188,8 @@ defmodule Patternr.Elixir do
   def show({:variable, {v, nil}}), do: v
   def show({:variable, {v, p}}), do: v <> " = " <> show(p)
   def show({:tuple, lst}), do: show_several("{", "}", lst)
+  def show({:list, {lst, nil}}), do: show_several("[", "]", lst)
+  def show({:list, {lst, xs}}), do: show_several("[", " | #{show(xs)}]", lst)
   def show({:string, s}), do: "\"#{String.replace(s, "\"", "\\\"")}\""
   def show({:charlist, c}), do: "'#{c}'"
   def show({:integer, c}), do: "#{c}"
@@ -181,6 +215,20 @@ defmodule Patternr.Elixir do
   def match({:tuple, velts}, {:tuple, pelts})
       when length(velts) == length(pelts),
       do: match_many(velts, pelts)
+
+  def match({:list, {velts, nil}}, {:list, {pelts, nil}})
+      when length(velts) == length(pelts),
+      do: match_many(velts, pelts)
+
+  #  not the same length, cannot match
+  def match(v = {:list, _}, p = {:list, {_, nil}}),
+    do: {:non_match, [{v, p}]}
+
+  def match(ts = {:list, _}, {:list, {[], xs}}),
+    do: match(ts, xs)
+
+  def match({:list, {[v | vs], vss}}, {:list, {[p | ps], pss}}),
+    do: join_match(match(v, p), match({:list, {vs, vss}}, {:list, {ps, pss}}))
 
   def match(v, p), do: {:non_match, [{v, p}]}
 
