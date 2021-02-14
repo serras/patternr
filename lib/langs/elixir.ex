@@ -224,6 +224,24 @@ defmodule Patternr.Elixir do
   def intro_text(), do: {"case", "do"}
 
   @impl Patternr
+  @spec help() :: list({String.t(), String.t()})
+  def help() do
+    [
+      {"_", "Wilcard, matches everything leaving no trace"},
+      {"x", "Variable, matches and remembers the value"},
+      {"x = <pattern>", "Variable, the contents must match the pattern"},
+      {"1", "Number"},
+      {"\"hello\"", "String"},
+      {"'hello'", "Character list"},
+      {"%{name: <pattern>, ..}", "Map, may match only a subset of fields"},
+      {"%Person{name: <pattern>, ..}", "Struct, may match only a subset of fields"},
+      {"{<pattern>, ..}", "Tuple, matches the exact amount of elements"},
+      {"[<pattern>, .. | <pattern>]",
+       "List, matches some elements in the head and (optionally) the tail of the list"}
+    ]
+  end
+
+  @impl Patternr
   @spec show(value) :: String.t()
   def show({:wildcard, v}), do: v
   def show({:variable, {v, nil}}), do: v

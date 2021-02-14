@@ -242,12 +242,12 @@ defmodule Patternr.Haskell do
   def help() do
     [
       {"_", "Wilcard, matches everything leaving no trace"},
-      {"x", "Variable, matches everything and remembers the value"},
+      {"x", "Variable, matches and remembers the value"},
       {"x@<pattern>", "Variable, the contents must match the pattern"},
       {"1", "Number"},
       {"\"hello\"", "String"},
       {"'a'", "Character"},
-      {"Person <pattern> ..", "Record, matching by position, all arguments must be present"},
+      {"Person <pattern> ..", "Record, all arguments must be present and in order"},
       {"Person { name = <pattern>, .. }", "Record, may match only a subset of fields"},
       {"[<pattern>, <pattern>, ..]", "List, matches specific length"},
       {"<pattern> : <pattern>", "List, matches head and tail"}
