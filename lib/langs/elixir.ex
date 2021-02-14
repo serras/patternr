@@ -129,6 +129,34 @@ defmodule Patternr.Elixir.Parser do
     |> label("map")
   end
 
+  def atom(combinator \\ empty()) do
+    combinator
+    |> ignore(string(":"))
+    |> generic_name([?A..?Z, ?a..?z], "atom name")
+    |> unwrap_and_tag(:atom)
+  end
+
+  def char(combinator \\ empty()) do
+    combinator
+    |> ignore(string("?"))
+    |> utf8_char([])
+    |> unwrap_and_tag(:integer)
+  end
+
+  def wrap_charlist([str]) do
+    chrlst =
+      str
+      |> String.to_charlist()
+      |> Enum.map(&{:integer, &1})
+
+    {:list, {chrlst, nil}}
+  end
+
+  def charlist(_combinator \\ empty()) do
+    string_with_quotes(?')
+    |> reduce(:wrap_charlist)
+  end
+
   def element() do
     choice([
       parens(),
@@ -136,8 +164,10 @@ defmodule Patternr.Elixir.Parser do
       list(),
       map(),
       string_with_quotes(?") |> unwrap_and_tag(:string),
-      string_with_quotes(?') |> unwrap_and_tag(:charlist),
+      charlist(),
       integer(min: 1) |> unwrap_and_tag(:integer),
+      atom(),
+      char(),
       variable(),
       wildcard()
     ])
@@ -157,10 +187,10 @@ defmodule Patternr.Elixir do
   @type element ::
           {:wildcard, String.t()}
           | {:variable, {String.t(), element | nil}}
-          | {:tuple, list(element)}
           | {:string, String.t()}
-          | {:charlist, String.t()}
           | {:integer, integer}
+          | {:atom, String.t()}
+          | {:tuple, list(element)}
           | {:list, {list(element), element | nil}}
           | {:map, {String.t() | nil, list(field)}}
   @type field :: {String.t(), element}
@@ -172,6 +202,7 @@ defmodule Patternr.Elixir do
   def vars({:tuple, elts}), do: Enum.flat_map(elts, &vars/1)
   def vars({:list, {elts, nil}}), do: Enum.flat_map(elts, &vars/1)
   def vars({:list, {elts, xs}}), do: Enum.flat_map(elts, &vars/1) ++ vars(xs)
+  def vars({:map, {_, elts}}), do: Enum.flat_map(elts, fn {_, v} -> vars(v) end)
   def vars(_), do: []
 
   ##  PARSER
@@ -230,9 +261,11 @@ defmodule Patternr.Elixir do
       {"_", "Wilcard, matches everything leaving no trace"},
       {"x", "Variable, matches and remembers the value"},
       {"x = <pattern>", "Variable, the contents must match the pattern"},
-      {"1", "Number"},
-      {"\"hello\"", "String"},
-      {"'hello'", "Character list"},
+      {"1", "(Integer) number"},
+      {"?a", "Character (actually an integer)"},
+      {":hello", "Atom"},
+      {"\"hello\"", "String, also known as binary"},
+      {"'hello'", "Character (or integer) list"},
       {"%{name: <pattern>, ..}", "Map, may match only a subset of fields"},
       {"%Person{name: <pattern>, ..}", "Struct, may match only a subset of fields"},
       {"{<pattern>, ..}", "Tuple, matches the exact amount of elements"},
@@ -247,16 +280,34 @@ defmodule Patternr.Elixir do
   def show({:variable, {v, nil}}), do: v
   def show({:variable, {v, p}}), do: v <> " = " <> show(p)
   def show({:tuple, lst}), do: show_several("{", "}", lst)
-  def show({:list, {lst, nil}}), do: show_several("[", "]", lst)
+
+  def show({:list, {lst, nil}}) do
+    if is_list_of_integers(lst) do
+      intlist = Enum.map(lst, fn {:integer, x} -> x end)
+      "'#{intlist}'"
+    else
+      show_several("[", "]", lst)
+    end
+  end
+
   def show({:list, {lst, xs}}), do: show_several("[", " | #{show(xs)}]", lst)
   def show({:string, s}), do: "\"#{String.replace(s, "\"", "\\\"")}\""
-  def show({:charlist, c}), do: "'#{c}'"
   def show({:integer, c}), do: "#{c}"
+  def show({:atom, name}), do: ":#{name}"
+  def show({:map, {nil, elts}}), do: "%#{show_several("{", "}", elts)}"
+  def show({:map, {struct, elts}}), do: "%#{struct}#{show_several("{", "}", elts)}"
   # for record fields
-  def show({k, v}), do: "#{k} = #{show(v)}"
+  def show({k, v}), do: "#{k}: #{show(v)}"
 
   defp show_several(startc, endc, ps) do
     startc <> Enum.map_join(ps, ", ", &show/1) <> endc
+  end
+
+  defp is_list_of_integers(xs) do
+    Enum.all?(xs, fn
+      {:integer, _} -> true
+      _ -> false
+    end)
   end
 
   ##  MATCHER
@@ -289,12 +340,38 @@ defmodule Patternr.Elixir do
   def match({:list, {[v | vs], vss}}, {:list, {[p | ps], pss}}),
     do: join_match(match(v, p), match({:list, {vs, vss}}, {:list, {ps, pss}}))
 
+  def match(v = {:map, {_, _}}, p = {:map, {nil, _}}),
+    do: match_map_args(v, p)
+
+  def match(v = {:map, {s, _}}, p = {:map, {s, _}}),
+    do: match_map_args(v, p)
+
   def match(v, p), do: {:non_match, [{v, p}]}
 
   def match_many(vs, ps) when length(vs) == length(ps) do
     Enum.zip(vs, ps)
     |> Enum.map(fn {v, p} -> match(v, p) end)
     |> join_matches()
+  end
+
+  def match_map_args(vrec = {:map, {_, vargs}}, prec = {:map, {_, pargs}}) do
+    result =
+      for {key, pat} <- pargs, reduce: {:match, %{}} do
+        nil ->
+          nil
+
+        acc ->
+          case Enum.find(vargs, fn {k, _} -> k == key end) do
+            nil ->
+              nil
+
+            {_, val} ->
+              this_match = match(val, pat)
+              join_match(acc, this_match)
+          end
+      end
+
+    if result == nil, do: {:non_match, [{vrec, prec}]}, else: result
   end
 
   def join_matches(matches) do

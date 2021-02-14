@@ -244,7 +244,7 @@ defmodule Patternr.Haskell do
       {"_", "Wilcard, matches everything leaving no trace"},
       {"x", "Variable, matches and remembers the value"},
       {"x@<pattern>", "Variable, the contents must match the pattern"},
-      {"1", "Number"},
+      {"1", "(Integer) number"},
       {"\"hello\"", "String"},
       {"'a'", "Character"},
       {"Person <pattern> ..", "Record, all arguments must be present and in order"},
