@@ -238,6 +238,23 @@ defmodule Patternr.Haskell do
   def intro_text(), do: {"case", "of"}
 
   @impl Patternr
+  @spec help() :: list({String.t(), String.t()})
+  def help() do
+    [
+      {"_", "Wilcard, matches everything leaving no trace"},
+      {"x", "Variable, matches everything and remembers the value"},
+      {"x@<pattern>", "Variable, the contents must match the pattern"},
+      {"1", "Number"},
+      {"\"hello\"", "String"},
+      {"'a'", "Character"},
+      {"Person <pattern> ..", "Record, matching by position, all arguments must be present"},
+      {"Person { name = <pattern>, .. }", "Record, may match only a subset of fields"},
+      {"[<pattern>, <pattern>, ..]", "List, matches specific length"},
+      {"<pattern> : <pattern>", "List, matches head and tail"}
+    ]
+  end
+
+  @impl Patternr
   @spec show(value) :: String.t()
   def show({:wildcard, v}), do: v
   def show({:variable, {v, nil}}), do: v
