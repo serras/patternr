@@ -276,8 +276,7 @@ defmodule Patternr.Elixir do
     [
       {"_", "Wilcard, matches everything leaving no trace"},
       {"x", "Variable, matches and remembers the value"},
-      {"<pattern> = <pattern>",
-       "Both patterns must match, usually used with a variable in one side"},
+      {"<pattern> = <pattern>", "Match both patterns, usually one is a variable"},
       {"1", "(Integer) number"},
       {"?a", "Character (actually an integer)"},
       {":hello", "Atom"},
