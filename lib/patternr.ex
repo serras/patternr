@@ -13,6 +13,7 @@ defmodule Patternr do
 
   @callback show(value) :: String.t()
   @callback intro_text() :: {String.t(), String.t()}
+  @callback end_text() :: String.t()
   @callback help() :: list({String.t(), String.t()})
 
   @callback match(value, pattern) ::

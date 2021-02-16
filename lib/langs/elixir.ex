@@ -271,6 +271,10 @@ defmodule Patternr.Elixir do
   def intro_text(), do: {"case", "do"}
 
   @impl Patternr
+  @spec end_text() :: String.t()
+  def end_text(), do: "end"
+
+  @impl Patternr
   @spec help() :: list({String.t(), String.t()})
   def help() do
     [

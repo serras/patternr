@@ -257,6 +257,10 @@ defmodule Patternr.Haskell do
   def intro_text(), do: {"case", "of"}
 
   @impl Patternr
+  @spec end_text() :: String.t()
+  def end_text(), do: ""
+
+  @impl Patternr
   @spec help() :: list({String.t(), String.t()})
   def help() do
     [
