@@ -359,6 +359,9 @@ defmodule Patternr.Elixir do
           {:match, Patternr.assignment()} | {:non_match, list({value, pattern})}
   # yay! in one go!
   def match(x, x), do: {:match, %{}}
+
+  def match(_, {:wildcard, _}), do: {:match, %{}}
+
   def match(v, {:variable, x}), do: {:match, %{x => v}}
 
   def match(v, {:both, {x, y}}),

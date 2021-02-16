@@ -323,6 +323,9 @@ defmodule Patternr.Haskell do
           {:match, Patternr.assignment()} | {:non_match, list({value, pattern})}
   # yay! in one go!
   def match(x, x), do: {:match, %{}}
+
+  def match(_, {:wildcard, _}), do: {:match, %{}}
+
   def match(v, {:variable, {x, nil}}), do: {:match, %{x => v}}
 
   def match(v, {:variable, {x, inner}}),
