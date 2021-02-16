@@ -33,7 +33,7 @@ defmodule Patternr.Elixir.Parser do
 
   def both(combinator \\ empty()) do
     combinator
-    |> parsec(:element_without_both)
+    |> parsec(:element_)
     |> ignore(owhitespace() |> string("=") |> owhitespace())
     |> parsec(:element)
     |> reduce(:build_both)
@@ -141,6 +141,7 @@ defmodule Patternr.Elixir.Parser do
     |> ignore(string(":"))
     |> generic_name([?A..?Z, ?a..?z], "atom name")
     |> unwrap_and_tag(:atom)
+    |> label("atom")
   end
 
   def char(combinator \\ empty()) do
@@ -148,6 +149,7 @@ defmodule Patternr.Elixir.Parser do
     |> ignore(string("?"))
     |> utf8_char([])
     |> unwrap_and_tag(:integer)
+    |> label("character")
   end
 
   def wrap_charlist([str]) do
@@ -164,14 +166,29 @@ defmodule Patternr.Elixir.Parser do
     |> reduce(:wrap_charlist)
   end
 
+  def build_range([this, that]) do
+    {"Range", [{"first", this}, {"last", that}]}
+  end
+
+  def range(combinator \\ empty()) do
+    combinator
+    |> parsec(:element_)
+    |> ignore(owhitespace() |> string("..") |> owhitespace())
+    |> parsec(:element_)
+    |> reduce(:build_range)
+    |> unwrap_and_tag(:map)
+    |> label("range")
+  end
+
   def element() do
     choice([
       both(),
-      element_without_both()
+      range(),
+      element_()
     ])
   end
 
-  def element_without_both() do
+  def element_() do
     choice([
       parens(),
       tuple(),
@@ -223,7 +240,7 @@ defmodule Patternr.Elixir do
   ##  PARSER
   ##  ======
   defparsec(:element, element())
-  defparsec(:element_without_both, element_without_both())
+  defparsec(:element_, element_())
 
   @type pattern :: element
   @type value :: element
@@ -290,7 +307,8 @@ defmodule Patternr.Elixir do
       {"%Person{name: <pattern>, ..}", "Struct, may match only a subset of fields"},
       {"{<pattern>, ..}", "Tuple, matches the exact amount of elements"},
       {"[<pattern>, .. | <pattern>]",
-       "List, matches some elements in the head and (optionally) the tail of the list"}
+       "List, matches some elements in the head and (optionally) the tail of the list"},
+      {"<first> .. <last>", "Range, matches the bounds"}
     ]
   end
 
@@ -315,6 +333,10 @@ defmodule Patternr.Elixir do
   def show({:integer, c}), do: "#{c}"
   def show({:atom, name}), do: ":#{name}"
   def show({:map, {nil, elts}}), do: "%#{show_several("{", "}", elts)}"
+
+  def show({:map, {"Range", [{"first", this}, {"last", that}]}}),
+    do: "#{show(this)}..#{show(that)}"
+
   def show({:map, {struct, elts}}), do: "%#{struct}#{show_several("{", "}", elts)}"
   # for record fields
   def show({k, v}), do: "#{k}: #{show(v)}"
