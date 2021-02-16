@@ -110,6 +110,25 @@ defmodule Patternr.Haskell.Parser do
     |> label("list literal")
   end
 
+  def tuple(combinator \\ empty()) do
+    combinator
+    |> ignore(string("(") |> owhitespace())
+    |> choice([
+      # empty list
+      ignore(string(")")) |> replace({:tuple, []}),
+      # at least two elements
+      parsec(:element)
+      |> times(
+        ignore(owhitespace() |> string(",") |> owhitespace())
+        |> parsec(:element),
+        min: 1
+      )
+      |> ignore(owhitespace() |> string(")"))
+      |> tag(:tuple)
+    ])
+    |> label("tuple literal")
+  end
+
   def two_to_tuple([a, b]), do: {a, b}
 
   def cons(combinator \\ empty()) do
@@ -125,7 +144,7 @@ defmodule Patternr.Haskell.Parser do
   def element_() do
     choice([
       parens(),
-      #  tuple(),
+      tuple(),
       list(),
       single_constructor(),
       string_with_quotes(?") |> unwrap_and_tag(:string),
@@ -249,6 +268,7 @@ defmodule Patternr.Haskell do
       {"'a'", "Character"},
       {"Person <pattern> ..", "Record, all arguments must be present and in order"},
       {"Person { name = <pattern>, .. }", "Record, may match only a subset of fields"},
+      {"(<pattern>, <pattern>, ..)", "Tuple, matches the exact amount of elements"},
       {"[<pattern>, <pattern>, ..]", "List, matches specific length"},
       {"<pattern> : <pattern>", "List, matches head and tail"}
     ]
