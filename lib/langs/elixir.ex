@@ -22,16 +22,23 @@ defmodule Patternr.Elixir.Parser do
     |> label("wildcard")
   end
 
-  def build_var([v]), do: {v, nil}
-  def build_var([v, e]), do: {v, e}
-
   def variable(combinator \\ empty()) do
     combinator
     |> generic_name([?a..?z], "variable name")
-    |> optional(ignore(owhitespace() |> string("=") |> owhitespace()) |> parsec(:element))
-    |> reduce(:build_var)
     |> unwrap_and_tag(:variable)
     |> label("variable")
+  end
+
+  def build_both([v, e]), do: {v, e}
+
+  def both(combinator \\ empty()) do
+    combinator
+    |> parsec(:element_without_both)
+    |> ignore(owhitespace() |> string("=") |> owhitespace())
+    |> parsec(:element)
+    |> reduce(:build_both)
+    |> unwrap_and_tag(:both)
+    |> label("both")
   end
 
   def parens(combinator \\ empty()) do
@@ -47,7 +54,7 @@ defmodule Patternr.Elixir.Parser do
     |> ignore(string("{") |> owhitespace())
     |> choice([
       # empty list
-      ignore(string("}")) |> replace({:list, []}),
+      ignore(string("}")) |> replace({:tuple, []}),
       # at least one element
       parsec(:element)
       |> repeat(
@@ -95,7 +102,7 @@ defmodule Patternr.Elixir.Parser do
     |> generic_name([?a..?z], "field name")
     |> ignore(owhitespace() |> string(":") |> owhitespace())
     |> parsec(:element)
-    |> reduce(:build_var)
+    |> reduce(:build_both)
   end
 
   def fields(combinator \\ empty()) do
@@ -159,6 +166,13 @@ defmodule Patternr.Elixir.Parser do
 
   def element() do
     choice([
+      both(),
+      element_without_both()
+    ])
+  end
+
+  def element_without_both() do
+    choice([
       parens(),
       tuple(),
       list(),
@@ -186,7 +200,8 @@ defmodule Patternr.Elixir do
 
   @type element ::
           {:wildcard, String.t()}
-          | {:variable, {String.t(), element | nil}}
+          | {:variable, String.t()}
+          | {:both, {element, element}}
           | {:string, String.t()}
           | {:integer, integer}
           | {:atom, String.t()}
@@ -197,8 +212,8 @@ defmodule Patternr.Elixir do
 
   @spec vars(element) :: list(String.t())
   def vars({:wildcard, _}), do: []
-  def vars({:variable, {v, nil}}), do: [v]
-  def vars({:variable, {v, t}}), do: [v | vars(t)]
+  def vars({:variable, v}), do: [v]
+  def vars({:both, {x, y}}), do: vars(x) ++ vars(y)
   def vars({:tuple, elts}), do: Enum.flat_map(elts, &vars/1)
   def vars({:list, {elts, nil}}), do: Enum.flat_map(elts, &vars/1)
   def vars({:list, {elts, xs}}), do: Enum.flat_map(elts, &vars/1) ++ vars(xs)
@@ -208,6 +223,7 @@ defmodule Patternr.Elixir do
   ##  PARSER
   ##  ======
   defparsec(:element, element())
+  defparsec(:element_without_both, element_without_both())
 
   @type pattern :: element
   @type value :: element
@@ -260,7 +276,8 @@ defmodule Patternr.Elixir do
     [
       {"_", "Wilcard, matches everything leaving no trace"},
       {"x", "Variable, matches and remembers the value"},
-      {"x = <pattern>", "Variable, the contents must match the pattern"},
+      {"<pattern> = <pattern>",
+       "Both patterns must match, usually used with a variable in one side"},
       {"1", "(Integer) number"},
       {"?a", "Character (actually an integer)"},
       {":hello", "Atom"},
@@ -277,8 +294,8 @@ defmodule Patternr.Elixir do
   @impl Patternr
   @spec show(value) :: String.t()
   def show({:wildcard, v}), do: v
-  def show({:variable, {v, nil}}), do: v
-  def show({:variable, {v, p}}), do: v <> " = " <> show(p)
+  def show({:variable, v}), do: v
+  def show({:both, {x, y}}), do: "#{show(x)} = #{show(y)}"
   def show({:tuple, lst}), do: show_several("{", "}", lst)
 
   def show({:list, {lst, nil}}) do
@@ -317,10 +334,10 @@ defmodule Patternr.Elixir do
           {:match, Patternr.assignment()} | {:non_match, list({value, pattern})}
   # yay! in one go!
   def match(x, x), do: {:match, %{}}
-  def match(v, {:variable, {x, nil}}), do: {:match, %{x => v}}
+  def match(v, {:variable, x}), do: {:match, %{x => v}}
 
-  def match(v, {:variable, {x, inner}}),
-    do: join_match({:match, %{x => v}}, match(v, inner))
+  def match(v, {:both, {x, y}}),
+    do: join_match(match(v, x), match(v, y))
 
   def match({:tuple, velts}, {:tuple, pelts})
       when length(velts) == length(pelts),
