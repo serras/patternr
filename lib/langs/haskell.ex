@@ -332,7 +332,9 @@ defmodule Patternr.Haskell do
   ##  =======
   @impl Patternr
   @spec match(value, pattern) ::
-          {:match, Patternr.assignment()} | {:non_match, list({value, pattern})}
+          {:match, Patternr.assignment()}
+          | {:non_match, list({value, pattern})}
+          | {:type_error, list({value, pattern})}
   # yay! in one go!
   def match(x, x), do: {:match, %{}}
 
@@ -427,7 +429,13 @@ defmodule Patternr.Haskell do
     end
   end
 
-  def match(v, p), do: {:non_match, [{v, p}]}
+  def match(v, p) do
+    if incompatible(v, p) do
+      {:type_error, [{v, p}]}
+    else
+      {:non_match, [{v, p}]}
+    end
+  end
 
   def match_many(vs, ps) when length(vs) == length(ps) do
     Enum.zip(vs, ps)
@@ -440,7 +448,43 @@ defmodule Patternr.Haskell do
   end
 
   def join_match({:match, x}, {:match, y}), do: {:match, Map.merge(x, y)}
-  def join_match({:match, _}, {:non_match, y}), do: {:non_match, y}
-  def join_match({:non_match, x}, {:match, _}), do: {:non_match, x}
+  def join_match({:match, _}, {problem, y}), do: {problem, y}
+  def join_match({problem, x}, {:match, _}), do: {problem, x}
   def join_match({:non_match, x}, {:non_match, y}), do: {:non_match, x ++ y}
+  def join_match({:type_error, x}, {:non_match, y}), do: {:type_error, x ++ y}
+  def join_match({:non_match, x}, {:type_error, y}), do: {:type_error, x ++ y}
+  def join_match({:type_error, x}, {:type_error, y}), do: {:type_error, x ++ y}
+
+  def incompatible(x, y), do: incompatible_(x, y) or incompatible_(y, x)
+
+  def incompatible_({:tuple, _}, {:list, _}), do: true
+  def incompatible_({:tuple, _}, {:cons, _}), do: true
+  def incompatible_({:tuple, _}, {:constructor, _}), do: true
+  def incompatible_({:tuple, _}, {:record, _}), do: true
+  def incompatible_({:tuple, _}, {:string, _}), do: true
+  def incompatible_({:tuple, _}, {:char, _}), do: true
+  def incompatible_({:tuple, _}, {:integer, _}), do: true
+
+  def incompatible_({:list, _}, {:constructor, _}), do: true
+  def incompatible_({:list, _}, {:record, _}), do: true
+  def incompatible_({:list, _}, {:char, _}), do: true
+  def incompatible_({:list, _}, {:integer, _}), do: true
+
+  def incompatible_({:cons, _}, {:constructor, _}), do: true
+  def incompatible_({:cons, _}, {:record, _}), do: true
+  def incompatible_({:cons, _}, {:char, _}), do: true
+  def incompatible_({:cons, _}, {:integer, _}), do: true
+
+  def incompatible_({:string, _}, {:constructor, _}), do: true
+  def incompatible_({:string, _}, {:record, _}), do: true
+  def incompatible_({:string, _}, {:char, _}), do: true
+  def incompatible_({:string, _}, {:integer, _}), do: true
+
+  def incompatible_({:char, _}, {:integer, _}), do: true
+  def incompatible_({:char, _}, {:record, _}), do: true
+  def incompatible_({:char, _}, {:constructor, _}), do: true
+  def incompatible_({:integer, _}, {:record, _}), do: true
+  def incompatible_({:integer, _}, {:constructor, _}), do: true
+
+  def incompatible_(_, _), do: false
 end

@@ -18,7 +18,9 @@ defmodule Patternr do
   @callback examples() :: list({String.t(), String.t(), String.t(), list(String.t())})
 
   @callback match(value, pattern) ::
-              {:match, assignment} | {:non_match, list({value, pattern})}
+              {:match, assignment}
+              | {:non_match, list({value, pattern})}
+              | {:type_error, list({value, pattern})}
 
   @spec parse_match(atom, String.t(), String.t()) :: any
   def parse_match(module, val, pat) do
@@ -30,11 +32,11 @@ defmodule Patternr do
           showable_subst = Enum.map(subst, fn {var, info} -> {var, module.show(info)} end)
           {:match, showable_subst}
 
-        {:non_match, problems} ->
+        {not_good, problems} ->
           showable_problems =
             Enum.map(problems, fn {one, other} -> {module.show(one), module.show(other)} end)
 
-          {:non_match, showable_problems}
+          {not_good, showable_problems}
       end
     end
   end
