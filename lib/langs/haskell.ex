@@ -279,6 +279,18 @@ defmodule Patternr.Haskell do
   end
 
   @impl Patternr
+  @spec examples() :: list({String.t(), String.t(), String.t(), list(String.t())})
+  def examples() do
+    [
+      {"list", "Usual matching on lists", "[1,2,3]", ["[]", "x:xs"]},
+      {"listsingle", "Lists with special case for one element", "[1,2,3]", ["[]", "[x]", "x:xs"]},
+      {"personrecord", "Name from a record", "Person { name = \"me\", age = 30 }",
+       ["Person { name = nm }"]},
+      {"personpos", "Name using position", "Person \"me\" 30", ["Person nm _"]}
+    ]
+  end
+
+  @impl Patternr
   @spec show(value) :: String.t()
   def show({:wildcard, v}), do: v
   def show({:variable, {v, nil}}), do: v

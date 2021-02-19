@@ -15,6 +15,7 @@ defmodule Patternr do
   @callback intro_text() :: {String.t(), String.t()}
   @callback end_text() :: String.t()
   @callback help() :: list({String.t(), String.t()})
+  @callback examples() :: list({String.t(), String.t(), String.t(), list(String.t())})
 
   @callback match(value, pattern) ::
               {:match, assignment} | {:non_match, list({value, pattern})}

@@ -313,6 +313,19 @@ defmodule Patternr.Elixir do
   end
 
   @impl Patternr
+  @spec examples() :: list({String.t(), String.t(), String.t(), list(String.t())})
+  def examples() do
+    [
+      {"list", "Usual matching on lists", "[1,2,3]", ["[]", "[first | rest]"]},
+      {"listsingle", "Lists with special case for one element", "[1,2,3]",
+       ["[]", "[one]", "[first | rest]"]},
+      {"person", "Name matching a struct", "%Person{name: \"me\", age: 30}",
+       ["%Person{name: n}"]},
+      {"personmap", "Name matching a map", "%Person{name: \"me\", age: 30}", ["%{name: n}"]}
+    ]
+  end
+
+  @impl Patternr
   @spec show(value) :: String.t()
   def show({:wildcard, v}), do: v
   def show({:variable, v}), do: v
